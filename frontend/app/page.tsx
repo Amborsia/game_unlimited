@@ -227,6 +227,30 @@ export default function Home() {
     }
   };
 
+  const formatStats = (stats: ItemStats) => {
+    const parts: string[] = [];
+    if (stats.attack) parts.push(`공격 +${stats.attack}`);
+    if (stats.defense) parts.push(`방어 +${stats.defense}`);
+    if (stats.health) parts.push(`체력 +${stats.health}`);
+    return parts.length ? parts.join(', ') : '효과 없음';
+  };
+
+  const groupItems = (items: Item[], slotFilter?: ItemSlot) => {
+    const map = new Map<string, { item: Item; count: number }>();
+    items
+      .filter((i) => !slotFilter || i.slot === slotFilter)
+      .forEach((i) => {
+        const key = `${i.name}-${i.rarity}-${i.slot}`;
+        const ex = map.get(key);
+        if (ex) {
+          ex.count += 1;
+        } else {
+          map.set(key, { item: i, count: 1 });
+        }
+      });
+    return Array.from(map.values());
+  };
+
   // 1초마다 자동 전투 실행
   useEffect(() => {
     // 초기 상태 로드
@@ -339,14 +363,14 @@ export default function Home() {
           <div className="bg-gray-800 p-4 rounded-lg mb-6 space-y-2">
             <div className="font-bold text-green-300">드롭 아이템</div>
             <div className="flex flex-wrap gap-2">
-              {drops.map((item) => (
+              {groupItems(drops).map(({ item, count }) => (
                 <span
-                  key={item.id}
+                  key={`${item.name}-${item.rarity}-${item.slot}`}
                   className={`px-3 py-1 rounded-full bg-gray-900 text-sm ${rarityColor(
                     item.rarity
                   )}`}
                 >
-                  {item.name} ({item.rarity})
+                  {item.name} ({item.rarity}){count > 1 ? ` x${count}` : ''}
                 </span>
               ))}
             </div>
@@ -368,7 +392,7 @@ export default function Home() {
                   {gameState.inventory.weapon.name} (
                   {gameState.inventory.weapon.rarity})
                   <div className="text-xs text-gray-300">
-                    atk +{gameState.inventory.weapon.stats.attack || 0}
+                    {formatStats(gameState.inventory.weapon.stats)}
                   </div>
                 </div>
               ) : (
@@ -386,7 +410,7 @@ export default function Home() {
                   {gameState.inventory.armor.name} (
                   {gameState.inventory.armor.rarity})
                   <div className="text-xs text-gray-300">
-                    def +{gameState.inventory.armor.stats.defense || 0}
+                    {formatStats(gameState.inventory.armor.stats)}
                   </div>
                 </div>
               ) : (
@@ -470,63 +494,46 @@ export default function Home() {
           </div>
 
           <div className="space-y-2">
-            {gameState.inventory.bag
-              .filter(
-                (i) =>
-                  i.slot === selectedTab ||
-                  (selectedTab === 'material' && i.slot === 'material')
-              )
-              .map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between bg-gray-900/60 p-3 rounded-md"
-                >
-                  <div>
-                    <div
-                      className={`font-semibold ${rarityColor(item.rarity)}`}
-                    >
-                      {item.name} ({item.rarity})
-                    </div>
-                    <div className="text-xs text-gray-300">
-                      atk +{item.stats.attack || 0} / def +
-                      {item.stats.defense || 0}{' '}
-                      {item.stats.health ? `/ hp +${item.stats.health}` : ''}
-                    </div>
-                  </div>
-                  {item.slot !== 'material' && (
-                    <button
-                      onClick={() => equipItem(item.id)}
-                      className="px-3 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold"
-                    >
-                      장착
-                    </button>
-                  )}
-                </div>
-              ))}
-
-            {selectedTab === 'material' &&
-              gameState.inventory.materials.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between bg-gray-900/60 p-3 rounded-md"
-                >
-                  <div className={`font-semibold ${rarityColor(item.rarity)}`}>
-                    {item.name} ({item.rarity})
-                  </div>
-                  <span className="text-xs text-gray-300">재료</span>
-                </div>
-              ))}
-
-            {gameState.inventory.bag.filter((i) =>
+            {groupItems(
               selectedTab === 'material'
-                ? i.slot === 'material'
-                : i.slot === selectedTab
-            ).length === 0 &&
-              (selectedTab !== 'material'
-                ? gameState.inventory.materials.length === 0
-                : true) && (
-                <div className="text-gray-400 text-sm">아이템이 없습니다.</div>
-              )}
+                ? gameState.inventory.materials
+                : gameState.inventory.bag,
+              selectedTab === 'material' ? undefined : selectedTab
+            ).map(({ item, count }) => (
+              <div
+                key={`${item.name}-${item.rarity}-${item.slot}`}
+                className="flex items-center justify-between bg-gray-900/60 p-3 rounded-md"
+              >
+                <div>
+                  <div className={`font-semibold ${rarityColor(item.rarity)}`}>
+                    {item.name} ({item.rarity}){count > 1 ? ` x${count}` : ''}
+                  </div>
+                  <div className="text-xs text-gray-300">
+                    {formatStats(item.stats)}
+                  </div>
+                </div>
+                {item.slot !== 'material' && (
+                  <button
+                    onClick={() => equipItem(item.id)}
+                    className="px-3 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold"
+                  >
+                    장착
+                  </button>
+                )}
+                {item.slot === 'material' && (
+                  <span className="text-xs text-gray-300">재료</span>
+                )}
+              </div>
+            ))}
+
+            {groupItems(
+              selectedTab === 'material'
+                ? gameState.inventory.materials
+                : gameState.inventory.bag,
+              selectedTab === 'material' ? undefined : selectedTab
+            ).length === 0 && (
+              <div className="text-gray-400 text-sm">아이템이 없습니다.</div>
+            )}
           </div>
         </div>
 
